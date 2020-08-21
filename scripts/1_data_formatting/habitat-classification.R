@@ -5,7 +5,10 @@
 
 library(tidyverse)
 
-species_raw <- read_csv("data/CCRCN_synthesis/CCRCN_species.csv")
+synthesis_species <- read_csv("data/CCRCN_synthesis/CCRCN_species.csv")
+synthesis_cores <- read_csv("data/CCRCN_synthesis/CCRCN_cores.csv")
+
+# 1. Classify Habitat based on the Synthesis Species ####
 
 # Define the genus/species for each habitat classification
 mangrove <- c("Avicennia", "Rhizophora", "Bruguiera", "Bruguierra", "Ceriops", "Lumnitzera", "Laguncularia",
@@ -30,7 +33,7 @@ other <- c("unvegetated", "mixed", "Mix", "Wrack", "Unidentified", "Algal Mat", 
 
 
 # isolate unique species in the synthesis
-species_habitat <- species_raw %>%
+assign_habitat <- synthesis_species %>%
   select(species_code) %>%
   distinct() %>%
   drop_na(species_code) %>%
@@ -46,14 +49,31 @@ species_habitat <- species_raw %>%
                              str_detect(species_code, str_c(salt_marsh, collapse = "|")) ~ "salt_marsh",
                              # assume that everything else is salt_marsh
                              TRUE ~ "salt_marsh")
-  )
+  ) %>%
+  arrange(habitat)
 
 # misspellings: Rhisophora, Rhizphora, Bruguierra, Kandelia obvata, Thassia,etc.
 
-
 # write lookup table
-write_csv(species_habitat, "data/synthesis_resources/species-habitats.csv")
+# write_csv(assign_habitat, "data/synthesis_resources/species-habitats.csv")
 
 # a curation function will be written to join the lookup table to the core table
 # if there are no species listed for a study, the habitat will be classified given the context of the study
 # this function will recognize when there is a new species with no assigned habitat
+
+## 2. Add Habitat Classification to Core Table ####
+
+# merge the habitat classifications to the species table
+habitat_species <- full_join(synthesis_species, assign_habitat)
+
+# lose the species column to find the unique habitat classification for study-site-core id
+habitat_unique <- habitat_species %>%
+  select(-species_code) %>% # comment out to investigate which species are causing duplication
+  filter(habitat != "other") %>%
+  drop_na(habitat) %>%
+  distinct()
+# if there is >1 habitat classification per study-site-core groups boil
+# it will cause duplication in the core table
+
+# merge the to the cores table
+habitat_cores <- left_join(synthesis_cores, habitat_unique)
