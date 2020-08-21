@@ -10,10 +10,10 @@ species_raw <- read_csv("data/CCRCN_synthesis/CCRCN_species.csv")
 # Define the genus/species for each habitat classification
 mangrove <- c("Avicennia", "Rhizophora", "Bruguiera", "Bruguierra", "Ceriops", "Lumnitzera", "Laguncularia",
               "Kandelia", "Kandela", "Acanthus", "Aegiceras", "Sonneratia", "Xylocarpus", "Conocarpus", 
-              "Heritiera", "Pelliciera", "Peliciera")
+              "Heritiera", "Pelliciera", "Peliciera", "Rhisophora", "Rhizphora")
 seagrass <- c("Thalassia", "Syringodium", "Zostera", "Halophila", "Cymodocea", "Halodule",
               "Amphibolis", "Enhalus", "Nanozostera", "Posidonia", "Ruppia", "Thalassodendron",
-              "Heterozostera")
+              "Heterozostera", "Thassia")
 salt_marsh <- c("Spartina", "Distichlis", "Juncus", "Phragmites", "Schoenoplectus",
                 "Sagittaria", "Scirpus", "Eleocharis", "Batis", "Salicornia", "Baccharis halimifolia",
                 "Zizania", "Bolboschoenus", "Typha", "Zizaniopsis", "Triglochin", "Triadenum", "Symphyotrichum",
@@ -23,8 +23,10 @@ salt_marsh <- c("Spartina", "Distichlis", "Juncus", "Phragmites", "Schoenoplectu
                 "Boehmeria", "Borrichia", "Bromus", "Brunnichia", "Carex")
 tidal_swamp <- c("Taxodium", "Alnus", "Salix", "Quercus", "Nyssa", "Acer", "Cornus", "Cyrilla",
                  "Dalbergia", "Forestiera", "Fraxinus", "Ilex", "Liquidambar", "Lysichiton",
-                 "Maianthemum", "Malus", "Morella", "Persea", "Photinia")
-other <- c("unvegetated", "mixed", "Mix", "Wrack", "Unidentified", "Algal Mat", "Litter")
+                 "Maianthemum", "Malus", "Morella", "Persea", "Photinia", "Picea", "Pinus", "Prunus",
+                 "Rhamnus", "Thuja")
+other <- c("unvegetated", "mixed", "Mix", "Wrack", "Unidentified", "Algal Mat", "Litter", "Swamp",
+           "submerged aquatic vegetation", "Surface Algae")
 
 
 # isolate unique species in the synthesis
@@ -41,7 +43,9 @@ species_habitat <- species_raw %>%
                              # seagrass
                              str_detect(species_code, str_c(seagrass, collapse = "|")) ~ "seagrass",
                              # salt marsh
-                             str_detect(species_code, str_c(salt_marsh, collapse = "|")) ~ "salt_marsh")
+                             str_detect(species_code, str_c(salt_marsh, collapse = "|")) ~ "salt_marsh",
+                             # assume that everything else is salt_marsh
+                             TRUE ~ "salt_marsh")
   )
 
 # misspellings: Rhisophora, Rhizphora, Bruguierra, Kandelia obvata, Thassia,etc.
