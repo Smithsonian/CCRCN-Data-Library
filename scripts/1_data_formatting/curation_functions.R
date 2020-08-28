@@ -537,3 +537,139 @@ cr_ccrcn <- function (dois, format = "bibtex", style = "apa", locale = "en-US",
     cn(dois, ...)
   }
 }
+
+
+#### Taxonomic functions ###############
+
+## ... Resolve taxa -----
+resolveTaxa <- function(df, data_sources) {
+  
+  taxa <- unique(df$species_code)
+  
+  resolved <- data.frame()
+  unresolved <- vector()
+  
+  for (i in 1:length(taxa)){
+    # store resolved results
+    gnr_result <- gnr_resolve(names = as.vector(taxa[i]), 
+                              canonical = TRUE,
+                              # gnr_datasources()
+                              # 6 = NCBI
+                              # 10 = Freebase, 
+                              # 12 = Encyclopedia of Life, 
+                              # 167 = International Plant Names Index, 
+                              # 1 = Catologue of life
+                              # 150 = USDA PLANTS database
+                              preferred_data_sources = data_sources) %>%
+      # pick the first result
+      slice(1)
+    
+    if (!plyr::empty(gnr_result)) {
+      # compile list of resolved taxa
+      resolved <- rbind(resolved, gnr_result)
+      
+    } else {
+      # save unresolved taxa
+      unresolved <- rbind(unresolved, taxa[i])
+      # skip unresolved taxa
+      i <- i + 1
+      next
+    }
+  }
+  
+  if (length(unresolved) > 0) {
+    print("The following taxa could not be resolved:")
+    print(unresolved)
+  }
+  
+  return(resolved)
+}
+
+# species_habitat <- read_csv("data/synthesis_resources/species-habitats.csv")
+# test_taxa <- resolveTaxa(species_habitat, data_souces = c(150, 6, 1))
+
+## Validate taxa ####
+# Query WORMS to validate undocumented, resolved taxa
+# Adapt this to the USDA plant database
+validateTaxa <- function(taxa) {
+  
+  validated_taxa <- vector()
+  valid_taxa_id <- vector()
+  
+  for (j in 1:length(taxa)){
+    # other (unuseful) functions
+    # taxa_record <- wm_record_(name = taxa[j]) # deprecated
+    # taxa_id <- wm_name2id(taxa[j])
+    
+    ## Validate taxa (with error handeling) ----
+    worms_id <- tryCatch(
+      # not sure if rows should be specified
+      taxize::get_wormsid(taxa[j], accepted = FALSE, rows = 1),
+      error = function(e) e
+    )
+    
+    if(!inherits(worms_id, "error")){
+      # assign valid name and aphia id
+      taxa_id <- as.data.frame(worms_id)$ids
+      taxa_record <- worrms::wm_record(as.numeric(taxa_id))
+      
+    } else {
+      fuzzy_taxa <- tryCatch(
+        # some species are't labeled as marine
+        worrms::wm_records_taxamatch(taxa[j], marine_only = FALSE), 
+        error = function(e) e)
+      # error message
+      # message(paste("Taxa does not seem to exist in the WORMS database:", taxa[j]))
+      # message("Original error message:")
+      # message(e)
+      
+      # Case: the fuzzy match produced no taxa records
+      if(inherits(fuzzy_taxa, "error")) {
+        validated_taxa[j] <- NA
+        valid_taxa_id[j] <- NA
+        
+        j <- j + 1
+        next
+        
+        # Case: the taxa match record does not contain an exact name match
+        # inclusion of this statement makes the script more conservative & less presumptive
+        # will wm_records_taxamatch() ever return >1 records with an exact name match? 
+      } else if (!any(taxa[j] %in% as.data.frame(fuzzy_taxa)$scientificname)) {
+        validated_taxa[j] <- NA
+        valid_taxa_id[j] <- NA
+        
+        j <- j + 1
+        next
+        
+        # proceed
+      } else {
+        taxa_record <- as.data.frame(fuzzy_taxa)
+      }
+    }
+    
+    ## Assign valid names and ids ----
+    if (taxa_record$status == "alternate representation") {
+      current_name <- taxa_record$scientificname
+      current_id <- taxa_record$AphiaID
+      
+    } else {
+      current_name <- taxa_record$valid_name
+      current_id <- taxa_record$valid_AphiaID
+    }
+    
+    validated_taxa[j] <- current_name
+    valid_taxa_id[j] <- current_id    
+  }
+  
+  # create dataframe for validated taxa
+  validation <- data.frame(resolved_name = taxa, 
+                           valid_name = validated_taxa,
+                           valid_AphiaID = valid_taxa_id,
+                           stringsAsFactors = FALSE) %>%
+    mutate(name_updated = ifelse(resolved_name == valid_name, 
+                                 yes = FALSE,
+                                 no = TRUE))
+  # return validation df
+  return(validation)
+}
+
